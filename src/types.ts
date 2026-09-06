@@ -1,6 +1,7 @@
 export interface Question {
   id: string;
   prompt: string;
+  question?: string;
   codeSnippet?: string;
   options: string[];
   correctIndex: number;
@@ -36,6 +37,16 @@ export interface LearningTrack {
   authorName?: string;
 }
 
+export enum ConceptState {
+  NOT_STARTED = "NOT_STARTED",
+  LEARNING = "LEARNING",
+  WEAK = "WEAK",
+  REPAIRING = "REPAIRING",
+  IMPROVING = "IMPROVING",
+  STABLE = "STABLE",
+  MASTERED = "MASTERED",
+}
+
 export interface SpacedRepetitionProgress {
   userId: string;
   conceptId: string;
@@ -51,6 +62,10 @@ export interface SpacedRepetitionProgress {
   retentionScore: number; // 0 - 100
   needsRepair: boolean;
   lastMisconception?: string;
+  conceptState?: ConceptState;
+  recentAccuracy?: number;
+  consecutiveCorrect?: number;
+  lastRepairDate?: string;
 }
 
 export interface ConceptRepairRecord {
@@ -90,6 +105,24 @@ export interface UserProfile {
   lastActiveDate: string;
   streakFreezes: number;
   createdAt: string;
+  safetyStreakWeeks?: number;
+}
+
+export interface RewardEventRecord {
+  id: string; // e.g. "user_123_q_two-pointers-window"
+  userId: string;
+  actionType: "question_first_correct" | "repair_completed" | "module_completed" | "streak_milestone" | "mastery_milestone";
+  entityId: string;
+  xpAwarded: number;
+  awardedAt: string;
+}
+
+export interface TargetedDrillQuestion {
+  question: string;
+  options: string[];
+  correctIndex: number;
+  difficulty: "easy" | "medium" | "hard";
+  explanation: string;
 }
 
 export interface AIRepairResponse {
@@ -101,6 +134,9 @@ export interface AIRepairResponse {
   options: string[];
   correctIndex: number;
   explanation: string;
+  difficulty?: "easy" | "medium" | "hard";
+  stepByStepGuide?: string[];
+  secondaryQuestion?: TargetedDrillQuestion;
 }
 
 export interface AIExplainResponse {
@@ -129,4 +165,35 @@ export interface PracticeAttempt {
   conceptFilter?: string;
   answeredAt: string;
   createdAt: string;
+}
+
+export interface LearningContext {
+  currentCourse?: string;
+  currentModule?: string;
+  currentTopic?: string;
+  weakConcepts?: { id: string; title: string; accuracy: number; mistakesCount: number }[];
+  masteredConcepts?: string[];
+  recentAttempts?: {
+    moduleTitle: string;
+    question: string;
+    selectedAnswer: string;
+    correctAnswer: string;
+    isCorrect: boolean;
+    answeredAt: string;
+  }[];
+  overallMastery?: number;
+  currentStreak?: number;
+  safetyStreakWeeks?: number;
+}
+
+export interface TutorChatMessage {
+  id: string;
+  role: "user" | "model";
+  text: string;
+  timestamp: string;
+  suggestedAction?: {
+    label: string;
+    actionType: "practice" | "repair" | "explain";
+    conceptId?: string;
+  };
 }

@@ -20,6 +20,7 @@ interface AdaptiveConceptRepairLoopProps {
   correctAnswer: string;
   onRepairResolved: (keyInsight: string, repairScore: number) => void;
   onSkip?: () => void;
+  onOpenAiTutor?: (concept: Concept, question: Question, userWrongAnswer: string) => void;
 }
 
 export const AdaptiveConceptRepairLoop: React.FC<AdaptiveConceptRepairLoopProps> = ({
@@ -29,6 +30,7 @@ export const AdaptiveConceptRepairLoop: React.FC<AdaptiveConceptRepairLoopProps>
   correctAnswer,
   onRepairResolved,
   onSkip,
+  onOpenAiTutor,
 }) => {
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
   const [selectedCalibrationIndex, setSelectedCalibrationIndex] = useState<number | null>(null);
@@ -36,6 +38,7 @@ export const AdaptiveConceptRepairLoop: React.FC<AdaptiveConceptRepairLoopProps>
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiData, setAiData] = useState<AIRepairResponse | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Request AI-powered diagnosis from server
   const handleRequestAiRepair = async () => {
@@ -76,6 +79,8 @@ export const AdaptiveConceptRepairLoop: React.FC<AdaptiveConceptRepairLoopProps>
     : selectedCalibrationIndex === 0;
 
   const handleFinalizeRepair = () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const insight = aiData?.mentalModelMetaphor || question.mentalModelRule;
     const score = isCalibrationCorrect ? 100 : 75;
     onRepairResolved(insight, score);
@@ -180,15 +185,28 @@ export const AdaptiveConceptRepairLoop: React.FC<AdaptiveConceptRepairLoopProps>
 
           {/* AI Mentor Assistant Trigger */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-            <button
-              id="btn-ai-deep-diagnosis"
-              onClick={handleRequestAiRepair}
-              disabled={isAiLoading}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700 text-indigo-300 transition-all"
-            >
-              <Bot className={`w-4 h-4 ${isAiLoading ? "animate-spin" : "text-indigo-400"}`} />
-              <span>{isAiLoading ? "Synthesizing AI Diagnosis..." : "Get Deep Gemini AI Diagnosis"}</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                id="btn-ai-deep-diagnosis"
+                onClick={handleRequestAiRepair}
+                disabled={isAiLoading}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700 text-indigo-300 transition-all"
+              >
+                <Bot className={`w-4 h-4 ${isAiLoading ? "animate-spin" : "text-indigo-400"}`} />
+                <span>{isAiLoading ? "Synthesizing AI Diagnosis..." : "Get Deep Gemini AI Diagnosis"}</span>
+              </button>
+
+              {onOpenAiTutor && (
+                <button
+                  type="button"
+                  onClick={() => onOpenAiTutor(concept, question, userAnswer)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-950/70 hover:bg-purple-900 border border-purple-700/70 text-purple-300 transition-all"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  <span>Ask AI Tutor</span>
+                </button>
+              )}
+            </div>
 
             <button
               onClick={() => setActiveStep(2)}
@@ -222,6 +240,24 @@ export const AdaptiveConceptRepairLoop: React.FC<AdaptiveConceptRepairLoopProps>
               {aiData?.counterExample || question.counterExample}
             </p>
           </div>
+
+          {aiData?.stepByStepGuide && aiData.stepByStepGuide.length > 0 && (
+            <div className="p-4 rounded-xl bg-indigo-950/30 border border-indigo-800/40 space-y-2">
+              <div className="text-xs font-semibold text-indigo-300 uppercase tracking-wider">
+                Step-by-Step Thinking Rubric
+              </div>
+              <div className="space-y-1.5 text-xs text-slate-200">
+                {aiData.stepByStepGuide.map((step, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-indigo-500/30 text-indigo-300 font-bold flex items-center justify-center shrink-0 text-[10px]">
+                      {idx + 1}
+                    </span>
+                    <span className="leading-relaxed">{step}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="p-3.5 rounded-xl bg-emerald-950/20 border border-emerald-800/40 text-xs text-emerald-200 flex items-start gap-2">
             <BookmarkCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />

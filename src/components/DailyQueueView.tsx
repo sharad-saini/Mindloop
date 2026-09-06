@@ -46,6 +46,7 @@ interface DailyQueueViewProps {
   ) => void;
   onNavigateToTracks: () => void;
   onUseStreakFreeze?: () => void;
+  onOpenAiTutor?: (concept: Concept, question: Question, userWrongAnswer: string) => void;
 }
 
 export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
@@ -61,6 +62,7 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
   onRepairCompleted,
   onNavigateToTracks,
   onUseStreakFreeze,
+  onOpenAiTutor,
 }) => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
@@ -68,6 +70,7 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
   const [inRepairMode, setInRepairMode] = useState(false);
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [sessionStats, setSessionStats] = useState({ reviewed: 0, correct: 0, xpGained: 0 });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Prioritize targeted concept when user chose "Practice" on a specific concept
   const queueCards = useMemo(() => {
@@ -212,37 +215,46 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
   };
 
   const handleSM2Rating = (quality: number) => {
-    if (!activeConcept) return;
-    onCardReviewed(
-      activeConcept.id,
-      activeConcept.trackId,
-      quality
-    );
-
-    proceedToNextCard();
+    if (!activeConcept || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      onCardReviewed(
+        activeConcept.id,
+        activeConcept.trackId,
+        quality
+      );
+      proceedToNextCard();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleRepairResolved = (keyInsight: string, score: number) => {
-    if (!activeConcept || !activeQuestion) return;
-    onRepairCompleted(
-      activeConcept.id,
-      activeConcept.trackId,
-      activeConcept.title,
-      activeQuestion.misconceptionDiagnosis,
-      keyInsight,
-      score
-    );
+    if (!activeConcept || !activeQuestion || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      onRepairCompleted(
+        activeConcept.id,
+        activeConcept.trackId,
+        activeConcept.title,
+        activeQuestion.misconceptionDiagnosis,
+        keyInsight,
+        score
+      );
 
-    setSessionStats(prev => ({
-      ...prev,
-      xpGained: prev.xpGained + 35,
-    }));
+      setSessionStats(prev => ({
+        ...prev,
+        xpGained: prev.xpGained + 35,
+      }));
 
-    setInRepairMode(false);
-    setIsAnswerRevealed(false);
-    setSelectedOptionIndex(null);
+      setInRepairMode(false);
+      setIsAnswerRevealed(false);
+      setSelectedOptionIndex(null);
 
-    proceedToNextCard();
+      proceedToNextCard();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const proceedToNextCard = () => {
@@ -382,6 +394,7 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
                   correctAnswer={activeQuestion.options[activeQuestion.correctIndex]}
                   onRepairResolved={handleRepairResolved}
                   onSkip={() => proceedToNextCard()}
+                  onOpenAiTutor={onOpenAiTutor}
                 />
               </div>
             ) : (

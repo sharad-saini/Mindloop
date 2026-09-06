@@ -113,6 +113,13 @@ service cloud.firestore {
         allow update: if false; // Repairs are immutable historical records
         allow delete: if isOwner(userId);
       }
+
+      // User subcollections: Idempotent Reward Events (XP protection)
+      match /rewardEvents/{eventId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && incoming().userId == request.auth.uid;
+        allow update, delete: if false;
+      }
     }
 
     // Publicly verifiable certificates

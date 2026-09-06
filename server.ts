@@ -33,10 +33,21 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-// AI Concept Repair Endpoint: Diagnoses why a learner made a mistake and creates a custom repair drill
+// AI Concept Repair Endpoint: Diagnoses why a learner made a mistake and creates a personalized multi-stage repair drill
 app.post("/api/ai/repair", async (req, res) => {
   try {
-    const { conceptTitle, questionText, userAnswer, correctAnswer, context } = req.body;
+    const { 
+      conceptTitle, 
+      questionText, 
+      userAnswer, 
+      correctAnswer, 
+      context,
+      difficulty,
+      recentAccuracy,
+      attemptsCount,
+      repeatedMistakes,
+      lastAttemptedTime
+    } = req.body;
 
     const ai = getGeminiClient();
     if (!ai) {
@@ -54,29 +65,70 @@ app.post("/api/ai/repair", async (req, res) => {
           "Clearing the browser cache"
         ],
         correctIndex: 1,
-        explanation: "Functional updaters pass the latest committed state rather than closing over a stale snapshot."
+        explanation: "Functional updaters pass the latest committed state rather than closing over a stale snapshot.",
+        difficulty: difficulty || "medium",
+        stepByStepGuide: [
+          "1. Identify where state or pointer position is first read.",
+          "2. Check if a mutation occurs within the current frame.",
+          "3. Use immutable or functional transitions to guarantee freshest state access."
+        ],
+        secondaryQuestion: {
+          question: `In an iterative algorithm for ${conceptTitle}, what guard prevents infinite loops?`,
+          options: [
+            "Strict monotonicity of the pointer or counter progression",
+            "Randomizing indices on every step",
+            "Increasing recursion depth infinitely",
+            "Skipping boundary condition checks"
+          ],
+          correctIndex: 0,
+          difficulty: "hard",
+          explanation: "Monotonically moving the pointer towards the opposite boundary guarantees guaranteed termination."
+        }
       });
     }
 
     const prompt = `You are MindLoop's Concept Repair Engine.
-A student just got a question wrong. Your job is NOT just to say "correct answer is X", but to perform cognitive diagnosis and construct an active Concept Repair micro-lesson.
+A student just got a question wrong. Construct a highly personalized active Concept Repair remediation lesson based on their specific mistake and learning history.
 
 Concept: ${conceptTitle || "Core Concept"}
-Context/Topic: ${context || "Technical Concept"}
+Context / Topic: ${context || "Technical Concept"}
 Question: ${questionText}
 Student's Chosen Wrong Answer: ${userAnswer}
 Correct Answer: ${correctAnswer}
+Current Difficulty: ${difficulty || "Medium"}
+Recent Concept Accuracy: ${recentAccuracy !== undefined ? recentAccuracy + "%" : "Unrecorded"}
+Attempts Count: ${attemptsCount || 1}
+Repeated Mistakes: ${repeatedMistakes ? "Yes, multiple misses on this topic" : "First recent miss"}
+Last Attempted Time: ${lastAttemptedTime || "Just now"}
+
+Your tasks:
+1. Pinpoint the EXACT cognitive reasoning flaw that led to selecting "${userAnswer}".
+2. Explain the root misconception clearly.
+3. Provide a vivid, memorable mental model metaphor that makes the mechanism click instantly.
+4. Provide a concrete counter-example showing why the misconception breaks down in practice.
+5. Create a new targeted micro-check question (easy/medium) to test if the mental model was repaired.
+6. Provide a step-by-step mental checklist (3 steps) for how to think about this in the future.
+7. Provide a secondary follow-up question (medium/hard) for progressive mastery.
 
 Return a valid JSON object strictly matching this schema:
 {
-  "diagnosis": "1-2 sentences pinpointing the cognitive reasoning flaw that led to selecting the wrong answer",
-  "rootMisconception": "Clear statement of the underlying false assumption or mental model glitch",
-  "mentalModelMetaphor": "A vivid, relatable real-world metaphor or mental model that makes the correct mechanism click instantly",
-  "counterExample": "A short, concrete counter-example showing why the misconception breaks down in practice",
-  "quickCheckQuestion": "A new targeted micro-question testing whether the misconception was repaired",
+  "diagnosis": "1-2 sentences pinpointing the exact reasoning flaw",
+  "rootMisconception": "Underlying false assumption or mental model glitch",
+  "mentalModelMetaphor": "Relatable metaphor that makes the correct mechanism click",
+  "counterExample": "Concrete counter-example showing failure in practice",
+  "quickCheckQuestion": "A new targeted micro-question testing the repaired concept",
   "options": ["Option A", "Option B", "Option C", "Option D"],
   "correctIndex": 0,
-  "explanation": "Clear explanation of why the correct option in this check is true"
+  "explanation": "Clear explanation of why the correct option is true",
+  "difficulty": "easy",
+  "stepByStepGuide": ["Step 1", "Step 2", "Step 3"],
+  "secondaryQuestion": {
+    "question": "A slightly harder targeted question testing application",
+    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+    "correctIndex": 0,
+    "difficulty": "medium",
+    "explanation": "Why this option solves the edge-case"
+  }
 }`;
 
     const response = await ai.models.generateContent({
@@ -102,8 +154,115 @@ Return a valid JSON object strictly matching this schema:
         quickCheckQuestion: "When does evaluation take place?",
         options: ["At parse time", "When the function is called", "Never", "During bundle compilation"],
         correctIndex: 1,
-        explanation: "Functions execute when invoked, accessing the scope available to them."
+        explanation: "Functions execute when invoked, accessing the scope available to them.",
+        difficulty: "medium",
+        stepByStepGuide: [
+          "1. Trace the point of invocation.",
+          "2. Verify variable values inside the active scope.",
+          "3. Test edge cases against null or zero length boundaries."
+        ]
       }
+    });
+  }
+});
+
+// AI Learning Chatbot / Tutor Endpoint
+app.post("/api/ai/chat", async (req, res) => {
+  try {
+    const { message, learningContext, chatHistory } = req.body;
+    const ai = getGeminiClient();
+
+    const weakList = learningContext?.weakConcepts && learningContext.weakConcepts.length > 0
+      ? learningContext.weakConcepts.map((w: any) => `${w.title} (${w.accuracy}% accuracy)`).join(", ")
+      : "None detected yet (steady performance)";
+
+    const recentMistakes = learningContext?.recentAttempts && learningContext.recentAttempts.length > 0
+      ? learningContext.recentAttempts
+          .filter((a: any) => !a.isCorrect)
+          .slice(-3)
+          .map((a: any) => `Question: "${a.question}", Student answered: "${a.selectedAnswer}", Correct: "${a.correctAnswer}"`)
+          .join("\n")
+      : "No recent incorrect answers recorded";
+
+    if (!ai) {
+      // Deterministic Socratic fallback
+      const lower = (message || "").toLowerCase();
+      let reply = "Hello! I am your MindLoop AI Learning Tutor. I track your active recall intervals, cognitive bottlenecks, and concept mastery.";
+      let suggestedAction: any = undefined;
+
+      if (lower.includes("weak") || lower.includes("mistake")) {
+        reply = learningContext?.weakConcepts?.length
+          ? `Based on your recent attempts, your identified weak areas are: ${weakList}. Would you like to launch a Concept Repair session on your most critical bottleneck?`
+          : "Great news! You currently have no identified weak concepts with low accuracy. Keep reviewing your daily queue to maintain peak retention!";
+        if (learningContext?.weakConcepts?.length) {
+          suggestedAction = {
+            label: `Repair ${learningContext.weakConcepts[0].title}`,
+            actionType: "repair",
+            conceptId: learningContext.weakConcepts[0].id
+          };
+        }
+      } else if (lower.includes("why") || lower.includes("wrong")) {
+        reply = `Reviewing your recent attempts:\n${recentMistakes}\n\nThe core reason this happens is typically a confusion between the declared interface and the runtime lifecycle. Would you like me to walk through a guided example?`;
+      } else if (lower.includes("quiz") || lower.includes("test me")) {
+        reply = `Here is an active recall check on ${learningContext?.currentTopic || 'Core Mental Models'}:\n\nIf two pointers start at opposite ends of a sorted array and their sum is greater than target, which pointer must move and why?\n\nTake your time and reply with your reasoning!`;
+      } else {
+        reply = `I am tracking your learning journey across "${learningContext?.currentCourse || 'Computer Science & Systems'}". Current Overall Mastery is ${learningContext?.overallMastery ?? 0}%. What would you like to explore or clarify next?`;
+      }
+
+      return res.json({ reply, suggestedAction });
+    }
+
+    const systemInstruction = `You are MindLoop's AI Learning Tutor and Cognitive Guide.
+You practice the Socratic Method:
+- Guide the learner to understanding with clear explanations, intuitive mental models, and thought-provoking guided questions.
+- NEVER invent or hallucinate fake user statistics! Use the exact context provided.
+- If user asks "What am I weak at?", accurately reflect their weak concepts: ${weakList}. If none, praise their consistency and recommend practicing unstarted topics.
+- If user asks "Why did I get this wrong?", refer to their actual recent mistakes:
+${recentMistakes}
+- If user asks for an explanation, break it down intuitively, provide a concrete real-world metaphor, and conclude with a quick check question.
+- Keep tone encouraging, rigorous, and engineering-focused.
+
+Current Learner Context:
+- Course: ${learningContext?.currentCourse || "Computer Science"}
+- Module / Topic: ${learningContext?.currentTopic || "General"}
+- Overall Mastery: ${learningContext?.overallMastery ?? 0}%
+- Current Streak: ${learningContext?.currentStreak ?? 1} days
+- Weak Concepts: ${weakList}
+- Recent Mistakes: ${recentMistakes}
+
+Format response in clean Markdown. At the end, if a specific action (like repairing a weak topic or starting practice) is relevant, suggest it naturally.`;
+
+    const formattedHistory = Array.isArray(chatHistory)
+      ? chatHistory.map((msg: any) => `${msg.role === 'user' ? 'Learner' : 'Tutor'}: ${msg.text}`).join("\n")
+      : "";
+
+    const userPrompt = `${formattedHistory ? "Previous Conversation:\n" + formattedHistory + "\n\n" : ""}Learner asks: ${message}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: userPrompt,
+      config: {
+        systemInstruction,
+      },
+    });
+
+    const reply = response.text || "I am here to guide your active learning. What concept would you like to explore?";
+    
+    // Check if a suggested action fits
+    let suggestedAction: any = undefined;
+    if (learningContext?.weakConcepts && learningContext.weakConcepts.length > 0) {
+      suggestedAction = {
+        label: `Repair ${learningContext.weakConcepts[0].title}`,
+        actionType: "repair",
+        conceptId: learningContext.weakConcepts[0].id
+      };
+    }
+
+    return res.json({ reply, suggestedAction });
+  } catch (error) {
+    console.error("AI Chat error:", error);
+    return res.status(500).json({
+      reply: "I am temporarily experiencing a connection hiccup with the AI model. Let's focus on your active practice cards while the connection recovers!"
     });
   }
 });

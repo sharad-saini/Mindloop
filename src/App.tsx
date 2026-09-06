@@ -25,8 +25,11 @@ import type {
   SpacedRepetitionProgress, 
   ConceptRepairRecord, 
   MasteryCertificate,
-  PracticeAttempt
+  PracticeAttempt,
+  LearningContext,
+  Question
 } from "./types";
+import { claimIdempotentXP, computeOverallMasteryScore } from "./lib/learningService";
 
 import { Navbar } from "./components/Navbar";
 import { DailyQueueView } from "./components/DailyQueueView";
@@ -37,6 +40,8 @@ import { StatsRetentionView } from "./components/StatsRetentionView";
 import { CustomTrackModal } from "./components/CustomTrackModal";
 import { AiExplainModal } from "./components/AiExplainModal";
 import { AuthModal } from "./components/AuthModal";
+import { AiTutorDrawer } from "./components/AiTutorDrawer";
+import { NextModuleUnlockBanner } from "./components/NextModuleUnlockBanner";
 
 export const App: React.FC = () => {
   // Navigation
@@ -63,10 +68,17 @@ export const App: React.FC = () => {
   const [certificates, setCertificates] = useState<MasteryCertificate[]>([]);
   const [targetedConcept, setTargetedConcept] = useState<{ concept: Concept; track: LearningTrack } | null>(null);
 
-  // Modals
+  // Modals & Drawers
   const [isCustomTrackOpen, setIsCustomTrackOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [aiExplainConcept, setAiExplainConcept] = useState<{ concept: Concept; track: LearningTrack } | null>(null);
+  const [isAiTutorOpen, setIsAiTutorOpen] = useState(false);
+  const [aiTutorInitialConcept, setAiTutorInitialConcept] = useState<string | undefined>(undefined);
+  const [nextModuleUnlock, setNextModuleUnlock] = useState<{
+    isVisible: boolean;
+    completedTitle: string;
+    nextConcept: { concept: Concept; track: LearningTrack };
+  } | null>(null);
 
   // 1. Firebase Auth listener
   useEffect(() => {
@@ -183,6 +195,51 @@ export const App: React.FC = () => {
     return list.filter(p => p.needsRepair).length;
   }, [progressMap]);
 
+  // Compute weak concepts for AI Tutor context
+  const weakConceptsList = useMemo(() => {
+    const list: { conceptId: string; title: string; accuracy: number; misconception?: string }[] = [];
+    tracks.forEach(track => {
+      track.concepts.forEach(concept => {
+        const p = progressMap[concept.id];
+        if (p && (p.needsRepair || (p.totalAttempts >= 2 && Math.round((p.correctAttempts / p.totalAttempts) * 100) < 70))) {
+          const acc = p.totalAttempts > 0 ? Math.round((p.correctAttempts / p.totalAttempts) * 100) : 0;
+          list.push({
+            conceptId: concept.id,
+            title: concept.title,
+            accuracy: acc,
+            misconception: p.lastMisconception || concept.summary
+          });
+        }
+      });
+    });
+    return list;
+  }, [tracks, progressMap]);
+
+  // Unified learning context with Overall Mastery across all tracks
+  const learningContext: LearningContext = useMemo(() => {
+    const overallMastery = computeOverallMasteryScore(tracks, progressMap);
+    return {
+      currentCourse: targetedConcept?.track.title || tracks[0]?.title || "Computer Science",
+      currentTopic: targetedConcept?.concept.title || "Adaptive Topology",
+      overallMastery,
+      currentStreak: userProfile.currentStreak,
+      weakConcepts: weakConceptsList,
+      recentAttempts: []
+    };
+  }, [tracks, progressMap, targetedConcept, userProfile.currentStreak, weakConceptsList]);
+
+  const handleOpenAiTutor = (conceptTitle?: string) => {
+    setAiTutorInitialConcept(conceptTitle);
+    setIsAiTutorOpen(true);
+  };
+
+  const handleOpenAiTutorWithContext = (concept: Concept, question: Question, userWrongAnswer: string) => {
+    const qText = question.prompt || question.question || "this active recall question";
+    const prompt = `I need help understanding "${concept.title}". On the question "${qText}", I answered "${userWrongAnswer}". What mental model helps explain why that was mistaken?`;
+    setAiTutorInitialConcept(prompt);
+    setIsAiTutorOpen(true);
+  };
+
   // 4. Update Profile XP & Streak
   const addXP = async (amount: number) => {
     const streakUpdate = calculateUpdatedStreak(
@@ -262,8 +319,34 @@ export const App: React.FC = () => {
       [conceptId]: updated
     }));
 
-    // Grant XP
-    await addXP(isCorrect ? 20 : 10);
+    // Grant XP via idempotent ledger (awards XP only once for same question attempt)
+    const activeUserId = currentUser?.uid || userProfile.userId || "guest";
+    const rewardRes = await claimIdempotentXP(
+      activeUserId,
+      "question_first_correct",
+      `${conceptId}_att_${newTotalAttempts}`,
+      isCorrect ? 20 : 10,
+      `Active recall on ${conceptId}`
+    );
+    if (rewardRes.awarded) {
+      await addXP(rewardRes.xpAwarded);
+    }
+
+    const matchedTrack = tracks.find(t => t.id === trackId);
+    const matchedConcept = matchedTrack?.concepts.find(c => c.id === conceptId);
+
+    // Trigger next module unlock animation if there is an adjacent concept in the curriculum
+    if (matchedTrack && matchedConcept) {
+      const cIdx = matchedTrack.concepts.findIndex(c => c.id === conceptId);
+      if (cIdx >= 0 && cIdx + 1 < matchedTrack.concepts.length) {
+        const nextC = matchedTrack.concepts[cIdx + 1];
+        setNextModuleUnlock({
+          isVisible: true,
+          completedTitle: matchedConcept.title,
+          nextConcept: { concept: nextC, track: matchedTrack }
+        });
+      }
+    }
 
     // Persist in Firestore
     if (currentUser) {
@@ -272,8 +355,6 @@ export const App: React.FC = () => {
 
         // Record granular practice attempt for comprehensive mastery tracking
         const attemptRef = doc(collection(db, "practiceAttempts"));
-        const matchedTrack = tracks.find(t => t.id === trackId);
-        const matchedConcept = matchedTrack?.concepts.find(c => c.id === conceptId);
 
         const attemptRecord: PracticeAttempt = {
           id: attemptRef.id,
@@ -370,8 +451,17 @@ export const App: React.FC = () => {
 
     setRepairRecords(prev => [newRecord, ...prev]);
 
-    // Grant +35 XP for cognitive repair
-    await addXP(35);
+    // Grant +35 XP for cognitive repair idempotently
+    const repairReward = await claimIdempotentXP(
+      currentUser?.uid || userProfile.userId || "guest",
+      "repair_completed",
+      conceptId,
+      35,
+      `Cognitive repair on ${conceptTitle}`
+    );
+    if (repairReward.awarded) {
+      await addXP(repairReward.xpAwarded);
+    }
 
     if (currentUser) {
       try {
@@ -399,7 +489,18 @@ export const App: React.FC = () => {
     };
 
     setCertificates(prev => [newCert, ...prev]);
-    await addXP(100);
+
+    // Grant +100 XP for certificate issuance idempotently
+    const certReward = await claimIdempotentXP(
+      currentUser?.uid || userProfile.userId || "guest",
+      "mastery_milestone",
+      track.id,
+      100,
+      `Mastery certificate for ${track.title}`
+    );
+    if (certReward.awarded) {
+      await addXP(certReward.xpAwarded);
+    }
 
     try {
       await setDoc(doc(db, "certificates", newCert.certificateId), newCert);
@@ -459,6 +560,7 @@ export const App: React.FC = () => {
         onOpenAuth={() => setIsAuthOpen(true)}
         onSignOut={handleSignOut}
         onCreateCustomTrack={() => setIsCustomTrackOpen(true)}
+        onOpenAiTutor={() => handleOpenAiTutor()}
       />
 
       {/* Main Bento Content Area */}
@@ -504,6 +606,7 @@ export const App: React.FC = () => {
               onRepairCompleted={handleRepairCompleted}
               onNavigateToTracks={() => setActiveTab("tracks")}
               onUseStreakFreeze={handleUseStreakFreeze}
+              onOpenAiTutor={handleOpenAiTutorWithContext}
             />
           )}
 
@@ -601,6 +704,50 @@ export const App: React.FC = () => {
         userProfile={userProfile}
         onUpdateDisplayName={handleUpdateDisplayName}
         onSignOut={handleSignOut}
+      />
+
+      {/* Socratic AI Tutor Interactive Drawer */}
+      <AiTutorDrawer
+        isOpen={isAiTutorOpen}
+        onClose={() => setIsAiTutorOpen(false)}
+        learningContext={learningContext}
+        initialConceptTitle={aiTutorInitialConcept}
+        onStartRepair={(conceptId) => {
+          setIsAiTutorOpen(false);
+          for (const t of tracks) {
+            const found = t.concepts.find(c => c.id === conceptId || c.title.toLowerCase() === conceptId.toLowerCase());
+            if (found) {
+              setTargetedConcept({ concept: found, track: t });
+              setActiveTab("repair");
+              break;
+            }
+          }
+        }}
+        onStartPractice={(conceptId) => {
+          setIsAiTutorOpen(false);
+          for (const t of tracks) {
+            const found = t.concepts.find(c => c.id === conceptId || c.title.toLowerCase() === conceptId.toLowerCase());
+            if (found) {
+              setTargetedConcept({ concept: found, track: t });
+              setActiveTab("queue");
+              break;
+            }
+          }
+        }}
+      />
+
+      {/* Next Module Unlock Celebration & Progression Banner */}
+      <NextModuleUnlockBanner
+        isVisible={nextModuleUnlock?.isVisible ?? false}
+        completedConceptTitle={nextModuleUnlock?.completedTitle ?? ""}
+        nextConcept={nextModuleUnlock?.nextConcept.concept ?? null}
+        nextTrack={nextModuleUnlock?.nextConcept.track ?? null}
+        onContinueNext={(concept, track) => {
+          setNextModuleUnlock(null);
+          setTargetedConcept({ concept, track });
+          setActiveTab("queue");
+        }}
+        onDismiss={() => setNextModuleUnlock(null)}
       />
     </div>
   );

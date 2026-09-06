@@ -10,9 +10,12 @@ import {
   Sparkles, 
   ArrowRight,
   BrainCircuit,
-  Filter
+  Filter,
+  TrendingUp
 } from "lucide-react";
 import type { Concept, LearningTrack, SpacedRepetitionProgress } from "../types";
+import { ConceptState } from "../types";
+import { computeConceptLearningState } from "../lib/learningService";
 
 export interface KnowledgeMapProps {
   tracks: LearningTrack[];
@@ -145,9 +148,12 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
       {/* Concept Node Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredConcepts.map(({ concept, track, progress }) => {
-          const isMastered = (progress?.masteryLevel ?? 0) >= 4;
-          const needsRepair = progress?.needsRepair ?? false;
-          const isLearning = progress && progress.masteryLevel > 0 && !isMastered;
+          const conceptState = computeConceptLearningState(progress);
+          const isMastered = conceptState === ConceptState.MASTERED;
+          const isStable = conceptState === ConceptState.STABLE;
+          const isImproving = conceptState === ConceptState.IMPROVING;
+          const needsRepair = conceptState === ConceptState.WEAK || conceptState === ConceptState.REPAIRING;
+          const isLearning = conceptState === ConceptState.LEARNING;
           const attempts = progress?.totalAttempts ?? 0;
           const correct = progress?.correctAttempts ?? 0;
           const accuracy = attempts > 0 ? Math.round((correct / attempts) * 100) : null;
@@ -161,6 +167,10 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
                   ? "bg-rose-950/20 border-rose-500/60 shadow-[0_0_15px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/30"
                   : isMastered
                   ? "bg-slate-900/70 border-emerald-500/40 shadow-sm hover:border-emerald-500/60"
+                  : isStable
+                  ? "bg-slate-900/70 border-teal-500/40 shadow-sm hover:border-teal-500/60"
+                  : isImproving
+                  ? "bg-slate-900/70 border-amber-500/40 shadow-sm hover:border-amber-500/60"
                   : isLearning
                   ? "bg-slate-900/60 border-indigo-500/40 hover:border-indigo-500/70"
                   : "bg-slate-900/40 border-slate-800 hover:border-slate-700"
@@ -179,11 +189,19 @@ export const KnowledgeMap: React.FC<KnowledgeMapProps> = ({
                     </span>
                   ) : isMastered ? (
                     <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold">
-                      <CheckCircle2 className="w-3 h-3" /> Lv {progress?.masteryLevel} Mastered
+                      <CheckCircle2 className="w-3 h-3" /> Mastered
+                    </span>
+                  ) : isStable ? (
+                    <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-teal-500/20 text-teal-300 border border-teal-500/40 font-semibold">
+                      <CheckCircle2 className="w-3 h-3" /> Stable (Lv {progress?.masteryLevel})
+                    </span>
+                  ) : isImproving ? (
+                    <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                      <TrendingUp className="w-3 h-3" /> Improving
                     </span>
                   ) : isLearning ? (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/40 font-medium">
-                      Lv {progress?.masteryLevel} Active
+                      Lv {progress?.masteryLevel} Learning
                     </span>
                   ) : (
                     <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">

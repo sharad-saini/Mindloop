@@ -14,7 +14,8 @@ import {
   Menu,
   X,
   Layers,
-  LayoutDashboard
+  LayoutDashboard,
+  Bot
 } from "lucide-react";
 import type { UserProfile } from "../types";
 
@@ -27,6 +28,7 @@ interface NavbarProps {
   onOpenAuth: () => void;
   onSignOut: () => void;
   onCreateCustomTrack: () => void;
+  onOpenAiTutor?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -38,6 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onSignOut,
   onCreateCustomTrack,
+  onOpenAiTutor,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -103,6 +106,16 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {onOpenAiTutor && (
+            <button
+              onClick={onOpenAiTutor}
+              className="p-1.5 rounded-xl bg-purple-950/70 border border-purple-700/60 text-purple-300 hover:text-white transition-colors"
+              title="Open AI Tutor"
+            >
+              <Bot className="w-4 h-4" />
+            </button>
+          )}
+
           <button
             onClick={onOpenAuth}
             className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-800 rounded-full border border-slate-700 text-xs text-slate-300"
@@ -223,11 +236,27 @@ export const Navbar: React.FC<NavbarProps> = ({
           })}
         </nav>
 
-        {/* Quick Action button */}
-        <div className="px-4 mb-4">
+        {/* Quick Action buttons */}
+        <div className="px-4 mb-4 space-y-2">
+          {onOpenAiTutor && (
+            <button
+              id="btn-sidebar-ai-tutor"
+              onClick={onOpenAiTutor}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-purple-950/70 to-indigo-950/70 hover:from-purple-900/80 hover:to-indigo-900/80 text-purple-200 border border-purple-700/50 transition-all shadow-sm group"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded-lg bg-purple-600/40 border border-purple-500/50 flex items-center justify-center text-purple-300">
+                  <Bot className="w-3.5 h-3.5" />
+                </div>
+                <span className="text-xs font-semibold">MindLoop Tutor</span>
+              </div>
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 group-hover:rotate-12 transition-transform" />
+            </button>
+          )}
+
           <button
             onClick={onCreateCustomTrack}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all hover:border-indigo-500/50"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all hover:border-indigo-500/50"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>New Custom Track</span>
