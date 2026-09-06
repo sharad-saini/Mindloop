@@ -257,12 +257,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1">
               <span>{xpInCurrentLevel}/100 to Lv {currentLevel + 1}</span>
               <button 
+                id="btn-sidebar-profile"
                 onClick={onOpenAuth}
-                className="text-indigo-400 hover:text-indigo-300 font-semibold"
+                className="text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
               >
                 Profile
               </button>
             </div>
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between px-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-full bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-[10px] font-bold text-indigo-300 shrink-0">
+                {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : "G"}
+              </div>
+              <span className="text-xs text-slate-300 font-medium truncate max-w-[100px]">
+                {userProfile.displayName || "Guest Learner"}
+              </span>
+            </div>
+            <button
+              id="btn-sidebar-signout"
+              onClick={onSignOut}
+              className="text-[11px] text-slate-400 hover:text-rose-400 font-medium transition-colors cursor-pointer"
+              title="Sign Out"
+            >
+              Sign Out
+            </button>
           </div>
         </div>
       </aside>

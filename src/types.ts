@@ -109,3 +109,24 @@ export interface AIExplainResponse {
   coreRule: string;
   practicalExample: string;
 }
+
+export interface PracticeAttempt {
+  id?: string;
+  userId: string;
+  course: string;
+  moduleId: string;
+  moduleTitle: string;
+  topic: string;
+  questionId: string;
+  question: string;
+  selectedAnswer: string;
+  correctAnswer: string;
+  isCorrect: boolean;
+  difficulty: string;
+  sessionId: string;
+  attemptNumber: number;
+  sessionMode: "queue" | "targeted" | "repair";
+  conceptFilter?: string;
+  answeredAt: string;
+  createdAt: string;
+}

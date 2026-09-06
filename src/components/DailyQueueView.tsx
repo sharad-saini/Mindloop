@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import confetti from "canvas-confetti";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   CheckCircle2, 
   Sparkles, 
@@ -96,38 +97,51 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
   const activeConcept = activeItem?.concept;
   const activeQuestion: Question | undefined = activeConcept?.questions[0];
 
-  // Real-time calculation of overall curriculum concepts and mastery
+  // Real-time calculation of practice attempts, correct answers, and overall mastery across all courses
   const allConceptsList = useMemo(() => {
     const list: Concept[] = [];
     allTracks.forEach(t => list.push(...t.concepts));
     return list;
   }, [allTracks]);
 
+  const progressValues = useMemo(() => {
+    return Object.values(progressMap) as SpacedRepetitionProgress[];
+  }, [progressMap]);
+
+  const totalAllPracticeAttempts = useMemo(() => {
+    return progressValues.reduce((acc, p) => acc + (p.totalAttempts || 0), 0);
+  }, [progressValues]);
+
+  const totalAllCorrectAttempts = useMemo(() => {
+    return progressValues.reduce((acc, p) => acc + (p.correctAttempts || 0), 0);
+  }, [progressValues]);
+
+  const totalAllWrongAttempts = useMemo(() => {
+    return Math.max(0, totalAllPracticeAttempts - totalAllCorrectAttempts);
+  }, [totalAllPracticeAttempts, totalAllCorrectAttempts]);
+
+  // Overall Mastery strictly defined as: ALL CORRECT ATTEMPTS / ALL PRACTICE ATTEMPTS * 100
+  // Starts at 0% when no attempts exist
   const overallMasteryPercent = useMemo(() => {
-    if (allConceptsList.length === 0) return 0;
-    const sum = allConceptsList.reduce((acc, c) => {
-      const p = progressMap[c.id];
-      return acc + (p ? (p.masteryLevel / 5) * 100 : 0);
-    }, 0);
-    return Math.round(sum / allConceptsList.length);
-  }, [allConceptsList, progressMap]);
+    if (totalAllPracticeAttempts === 0) return 0;
+    return Math.round((totalAllCorrectAttempts / totalAllPracticeAttempts) * 100);
+  }, [totalAllPracticeAttempts, totalAllCorrectAttempts]);
 
   const practiceAccuracyPercent = useMemo(() => {
-    if (sessionStats.reviewed > 0) {
-      return Math.round((sessionStats.correct / sessionStats.reviewed) * 100);
+    if (totalAllPracticeAttempts === 0) {
+      if (sessionStats.reviewed > 0) {
+        return Math.round((sessionStats.correct / sessionStats.reviewed) * 100);
+      }
+      return 0;
     }
-    const progressValues = Object.values(progressMap) as SpacedRepetitionProgress[];
-    const totalAttempts = progressValues.reduce((acc, p) => acc + (p.totalAttempts || 0), 0);
-    const correctAttempts = progressValues.reduce((acc, p) => acc + (p.correctAttempts || 0), 0);
-    return totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 85;
-  }, [sessionStats, progressMap]);
+    return Math.round((totalAllCorrectAttempts / totalAllPracticeAttempts) * 100);
+  }, [totalAllPracticeAttempts, totalAllCorrectAttempts, sessionStats]);
 
   const longTermRetentionPercent = useMemo(() => {
-    const progressValues = Object.values(progressMap) as SpacedRepetitionProgress[];
-    if (progressValues.length === 0) return 88;
+    if (progressValues.length === 0) return 0;
     const sum = progressValues.reduce((acc, p) => acc + (p.retentionScore || 80), 0);
     return Math.round(sum / progressValues.length);
-  }, [progressMap]);
+  }, [progressValues]);
 
   // Find real concept needing repair for the Bento Repair card
   const criticalRepairItem = useMemo(() => {
@@ -530,6 +544,22 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
                   />
                 </div>
               </div>
+
+              {/* Questions, Correct, Wrong breakdown */}
+              <div className="pt-2 grid grid-cols-3 gap-2 text-center text-xs">
+                <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                  <div className="text-slate-400 text-[10px] uppercase font-semibold">Questions</div>
+                  <div className="text-white font-bold text-sm">{totalAllPracticeAttempts}</div>
+                </div>
+                <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                  <div className="text-emerald-400 text-[10px] uppercase font-semibold">Correct</div>
+                  <div className="text-emerald-400 font-bold text-sm">{totalAllCorrectAttempts}</div>
+                </div>
+                <div className="bg-slate-950/60 p-2 rounded-xl border border-slate-800">
+                  <div className="text-rose-400 text-[10px] uppercase font-semibold">Wrong</div>
+                  <div className="text-rose-400 font-bold text-sm">{totalAllWrongAttempts}</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -700,6 +730,55 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
         </div>
 
       </div>
+
+      {/* Floating Game Progression Next Module Reward Bar */}
+      <AnimatePresence>
+        {isAnswerRevealed && selectedOptionIndex === activeQuestion?.correctIndex && (
+          <motion.div
+            id="floating-next-module-container"
+            initial={{ y: 90, opacity: 0, scale: 0.92 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 90, opacity: 0, scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 350, damping: 24 }}
+            className="fixed bottom-6 inset-x-0 mx-auto max-w-lg px-4 z-50 pointer-events-auto"
+          >
+            <div className="p-[2px] rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 shadow-[0_12px_40px_rgba(99,102,241,0.45)]">
+              <div className="bg-slate-950/95 backdrop-blur-lg rounded-[14px] p-3.5 sm:p-4 flex items-center justify-between gap-3 border border-slate-800">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/40 shrink-0">
+                    <Sparkles className="w-5 h-5 text-amber-300 fill-amber-300/40 animate-pulse" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-emerald-400 uppercase tracking-wider">
+                        +20 XP Reward Earned
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 font-bold">
+                        Accurate
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-200 truncate mt-0.5">
+                      {activeConcept?.title || "Concept"} intuition validated
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    id="btn-next-module-action"
+                    type="button"
+                    onClick={() => handleSM2Rating(4)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-extrabold text-white bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 shadow-lg shadow-indigo-600/40 transition-all hover:scale-105 active:scale-95 border border-indigo-400/40 cursor-pointer"
+                  >
+                    <span>Next Module</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

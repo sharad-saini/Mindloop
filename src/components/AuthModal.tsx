@@ -8,6 +8,7 @@ interface AuthModalProps {
   onClose: () => void;
   userProfile: UserProfile;
   onUpdateDisplayName: (newName: string) => void;
+  onSignOut?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -15,6 +16,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   userProfile,
   onUpdateDisplayName,
+  onSignOut,
 }) => {
   const [nameInput, setNameInput] = useState(userProfile.displayName);
   const [isSaved, setIsSaved] = useState(false);
@@ -44,7 +46,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      if (onSignOut) {
+        onSignOut();
+      } else {
+        await signOut(auth);
+      }
       onClose();
     } catch (err) {
       console.error(err);

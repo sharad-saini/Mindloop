@@ -48,7 +48,7 @@ export const StatsRetentionView: React.FC<StatsRetentionViewProps> = ({
 
   const avgRetention = totalConceptsTracked > 0 
     ? Math.round(totalRetentionSum / totalConceptsTracked) 
-    : 85;
+    : 0;
 
   return (
     <div className="max-w-5xl mx-auto py-6 sm:py-8 px-4 space-y-8">

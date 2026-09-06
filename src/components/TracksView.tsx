@@ -13,9 +13,11 @@ import {
   Play, 
   Plus, 
   Search,
-  Bot
+  Bot,
+  Layers
 } from "lucide-react";
 import type { LearningTrack, Concept, SpacedRepetitionProgress } from "../types";
+import { KnowledgeMap } from "./KnowledgeMap";
 
 interface TracksViewProps {
   tracks: LearningTrack[];
@@ -24,6 +26,7 @@ interface TracksViewProps {
   onOpenConceptRepair: (concept: Concept, track: LearningTrack) => void;
   onCreateCustomTrack: () => void;
   onAskAiExplain: (concept: Concept, track: LearningTrack) => void;
+  onRepair?: (concept: Concept, track: LearningTrack) => void;
 }
 
 export const TracksView: React.FC<TracksViewProps> = ({
@@ -33,10 +36,14 @@ export const TracksView: React.FC<TracksViewProps> = ({
   onOpenConceptRepair,
   onCreateCustomTrack,
   onAskAiExplain,
+  onRepair,
 }) => {
+  const [viewMode, setViewMode] = useState<"modules" | "map">("modules");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTrackId, setExpandedTrackId] = useState<string | null>(tracks[0]?.id || null);
+
+  const handleRepair = onRepair || onOpenConceptRepair;
 
   const categories = [
     { id: "all", label: "All Tracks" },
@@ -82,24 +89,62 @@ export const TracksView: React.FC<TracksViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-            Curriculum Tracks
+            Curriculum & Knowledge Map
           </h1>
           <p className="text-slate-400 text-sm mt-1">
-            Targeted micro-learning modules engineered for active recall and permanent retention.
+            Targeted micro-learning modules and interactive concept topology.
           </p>
         </div>
 
-        <button
-          id="btn-create-track-action"
-          onClick={onCreateCustomTrack}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md shadow-indigo-600/20 shrink-0 self-start sm:self-auto"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Create Custom Track</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View switcher */}
+          <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex items-center gap-1">
+            <button
+              onClick={() => setViewMode("modules")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === "modules"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Modules</span>
+            </button>
+            <button
+              onClick={() => setViewMode("map")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                viewMode === "map"
+                  ? "bg-indigo-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              <Network className="w-3.5 h-3.5" />
+              <span>Knowledge Map</span>
+            </button>
+          </div>
+
+          <button
+            id="btn-create-track-action"
+            onClick={onCreateCustomTrack}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white transition-all shadow-md shadow-indigo-600/20 shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Create Track</span>
+          </button>
+        </div>
       </div>
 
-      {/* Filter and Search Bar */}
+      {viewMode === "map" ? (
+        <KnowledgeMap
+          tracks={tracks}
+          progressMap={progressMap}
+          onRepair={handleRepair}
+          onStartPractice={onStartConceptPractice}
+          onAskAiExplain={onAskAiExplain}
+        />
+      ) : (
+        <>
+          {/* Filter and Search Bar */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-3 pt-2">
         {/* Category Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 scrollbar-none">
@@ -284,6 +329,8 @@ export const TracksView: React.FC<TracksViewProps> = ({
           );
         })}
       </div>
+      </>
+      )}
     </div>
   );
 };

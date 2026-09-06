@@ -75,6 +75,21 @@ service cloud.firestore {
         && data.category is string && data.category.size() <= 50;
     }
 
+    function isValidPracticeAttempt(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.moduleId is string && data.moduleId.size() <= 128
+        && data.questionId is string && data.questionId.size() <= 128
+        && data.isCorrect is bool
+        && data.answeredAt is string && data.answeredAt.size() <= 64;
+    }
+
+    // Practice attempts collection
+    match /practiceAttempts/{attemptId} {
+      allow get, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidPracticeAttempt(incoming());
+      allow update, delete: if false;
+    }
+
     // User profiles
     match /users/{userId} {
       allow get: if isSignedIn();

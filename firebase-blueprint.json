@@ -91,6 +91,30 @@
         "createdAt": { "type": "string" }
       },
       "required": ["trackId", "authorId", "title", "description", "category", "createdAt"]
+    },
+    "PracticeAttempt": {
+      "title": "PracticeAttempt",
+      "description": "Log of user practice question attempt across learning tracks.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "course": { "type": "string" },
+        "moduleId": { "type": "string" },
+        "moduleTitle": { "type": "string" },
+        "topic": { "type": "string" },
+        "questionId": { "type": "string" },
+        "question": { "type": "string" },
+        "selectedAnswer": { "type": "string" },
+        "correctAnswer": { "type": "string" },
+        "isCorrect": { "type": "boolean" },
+        "difficulty": { "type": "string" },
+        "sessionId": { "type": "string" },
+        "attemptNumber": { "type": "number" },
+        "sessionMode": { "type": "string" },
+        "answeredAt": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["userId", "course", "moduleId", "questionId", "isCorrect", "answeredAt", "createdAt"]
     }
   },
   "firestore": {
@@ -105,6 +129,10 @@
     "/users/{userId}/repairs/{repairId}": {
       "schema": "ConceptRepair",
       "description": "Logs of resolved concept misconceptions."
+    },
+    "/practiceAttempts/{attemptId}": {
+      "schema": "PracticeAttempt",
+      "description": "User practice attempt logs across courses."
     },
     "/certificates/{certificateId}": {
       "schema": "MasteryCertificate",

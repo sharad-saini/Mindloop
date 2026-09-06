@@ -24,7 +24,8 @@ import type {
   Concept, 
   SpacedRepetitionProgress, 
   ConceptRepairRecord, 
-  MasteryCertificate 
+  MasteryCertificate,
+  PracticeAttempt
 } from "./types";
 
 import { Navbar } from "./components/Navbar";
@@ -45,13 +46,13 @@ export const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>({
     userId: "guest",
-    displayName: "Learner",
-    xp: 60,
+    displayName: "Guest Learner",
+    xp: 0,
     level: 1,
-    currentStreak: 3,
-    longestStreak: 5,
+    currentStreak: 0,
+    longestStreak: 0,
     lastActiveDate: new Date().toISOString(),
-    streakFreezes: 2,
+    streakFreezes: 1,
     createdAt: new Date().toISOString(),
   });
 
@@ -101,23 +102,23 @@ export const App: React.FC = () => {
         // Initialize default profile
         const initialProfile: UserProfile = {
           userId: user.uid,
-          displayName: user.displayName || (user.isAnonymous ? "Curious Learner" : "MindLoop Scholar"),
+          displayName: user.displayName || (user.isAnonymous ? "Guest Learner" : "MindLoop Scholar"),
           email: user.email || undefined,
           photoURL: user.photoURL || undefined,
           isAnonymous: user.isAnonymous,
-          xp: 120,
-          level: 2,
-          currentStreak: 4,
-          longestStreak: 6,
+          xp: 0,
+          level: 1,
+          currentStreak: 0,
+          longestStreak: 0,
           lastActiveDate: new Date().toISOString(),
-          streakFreezes: 2,
+          streakFreezes: 1,
           createdAt: new Date().toISOString(),
         };
         await setDoc(userDocRef, initialProfile);
         setUserProfile(initialProfile);
       }
 
-      // Load Progress Subcollection
+      // Load Progress Subcollection (actual user practice state)
       const progressColRef = collection(db, "users", user.uid, "progress");
       const progressSnap = await getDocs(progressColRef);
       const pMap: Record<string, SpacedRepetitionProgress> = {};
@@ -125,29 +126,6 @@ export const App: React.FC = () => {
         const p = doc.data() as SpacedRepetitionProgress;
         pMap[p.conceptId] = p;
       });
-
-      // Preserve DSA course mastery at its existing real value of 14%
-      // In the 7-concept syllabus for Algorithmic Intuition & Data Structures,
-      // 1 mastered concept = Math.round((5 / 5) * 100 / 7) = 14%
-      if (!pMap["concept-two-pointers-window"]) {
-        const dsaProgress: SpacedRepetitionProgress = {
-          userId: user.uid,
-          conceptId: "concept-two-pointers-window",
-          trackId: "track-algorithms-structures",
-          masteryLevel: 5,
-          easeFactor: 2.6,
-          intervalDays: 7,
-          repetitions: 3,
-          nextReviewDate: new Date(Date.now() + 86400000 * 4).toISOString(),
-          lastReviewedDate: new Date(Date.now() - 86400000 * 3).toISOString(),
-          totalAttempts: 5,
-          correctAttempts: 5,
-          retentionScore: 94,
-          needsRepair: false
-        };
-        pMap[dsaProgress.conceptId] = dsaProgress;
-        await setDoc(doc(db, "users", user.uid, "progress", dsaProgress.conceptId), dsaProgress);
-      }
       setProgressMap(pMap);
 
       // Load Repairs Subcollection (only real user repair logs)
@@ -258,6 +236,12 @@ export const App: React.FC = () => {
 
     const sm2 = calculateSM2(currentProgress, quality);
 
+    const newTotalAttempts = currentProgress.totalAttempts + 1;
+    const isCorrect = quality >= 3;
+    const newCorrectAttempts = isCorrect ? currentProgress.correctAttempts + 1 : currentProgress.correctAttempts;
+    const accuracy = Math.round((newCorrectAttempts / newTotalAttempts) * 100);
+    const conceptNeedsRepair = (accuracy < 70 && newTotalAttempts >= 2) || sm2.needsRepair;
+
     const updated: SpacedRepetitionProgress = {
       ...currentProgress,
       masteryLevel: sm2.masteryLevel,
@@ -266,10 +250,10 @@ export const App: React.FC = () => {
       repetitions: sm2.repetitions,
       nextReviewDate: sm2.nextReviewDate,
       lastReviewedDate: new Date().toISOString(),
-      totalAttempts: currentProgress.totalAttempts + 1,
-      correctAttempts: quality >= 3 ? currentProgress.correctAttempts + 1 : currentProgress.correctAttempts,
+      totalAttempts: newTotalAttempts,
+      correctAttempts: newCorrectAttempts,
       retentionScore: sm2.retentionScore,
-      needsRepair: sm2.needsRepair,
+      needsRepair: conceptNeedsRepair,
       lastMisconception: misconception || currentProgress.lastMisconception
     };
 
@@ -279,15 +263,65 @@ export const App: React.FC = () => {
     }));
 
     // Grant XP
-    await addXP(quality >= 3 ? 20 : 10);
+    await addXP(isCorrect ? 20 : 10);
 
     // Persist in Firestore
     if (currentUser) {
       try {
         await setDoc(doc(db, "users", currentUser.uid, "progress", conceptId), updated);
+
+        // Record granular practice attempt for comprehensive mastery tracking
+        const attemptRef = doc(collection(db, "practiceAttempts"));
+        const matchedTrack = tracks.find(t => t.id === trackId);
+        const matchedConcept = matchedTrack?.concepts.find(c => c.id === conceptId);
+
+        const attemptRecord: PracticeAttempt = {
+          id: attemptRef.id,
+          userId: currentUser.uid,
+          course: matchedTrack?.title || trackId,
+          moduleId: conceptId,
+          moduleTitle: matchedConcept?.title || conceptId,
+          topic: matchedTrack?.category || "Computer Science",
+          questionId: `q-${conceptId}-${Date.now()}`,
+          question: matchedConcept?.questions[0]?.question || "Active recall evaluation",
+          selectedAnswer: isCorrect ? "Accurate answer" : "Incorrect response",
+          correctAnswer: matchedConcept?.questions[0]?.options[matchedConcept.questions[0].correctIndex] || "Accurate answer",
+          isCorrect,
+          difficulty: quality >= 5 ? "Easy" : quality === 4 ? "Good" : "Hard",
+          sessionId: `session-${Date.now().toString(36)}`,
+          attemptNumber: newTotalAttempts,
+          sessionMode: "queue",
+          answeredAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        };
+        await setDoc(attemptRef, attemptRecord);
       } catch (e) {
-        console.warn("Could not sync progress:", e);
+        console.warn("Could not sync progress or attempt:", e);
       }
+    }
+  };
+
+  // Sign out resets in-memory learner state so the fresh anonymous session starts at 0%
+  const handleSignOut = async () => {
+    try {
+      setProgressMap({});
+      setRepairRecords([]);
+      setCertificates([]);
+      setTargetedConcept(null);
+      setUserProfile({
+        userId: "guest",
+        displayName: "Guest Learner",
+        xp: 0,
+        level: 1,
+        currentStreak: 0,
+        longestStreak: 0,
+        lastActiveDate: new Date().toISOString(),
+        streakFreezes: 1,
+        createdAt: new Date().toISOString(),
+      });
+      await auth.signOut();
+    } catch (e) {
+      console.error("Sign out error:", e);
     }
   };
 
@@ -423,7 +457,7 @@ export const App: React.FC = () => {
         dueCount={dueCards.length}
         repairCount={repairCount}
         onOpenAuth={() => setIsAuthOpen(true)}
-        onSignOut={() => auth.signOut()}
+        onSignOut={handleSignOut}
         onCreateCustomTrack={() => setIsCustomTrackOpen(true)}
       />
 
@@ -482,6 +516,10 @@ export const App: React.FC = () => {
                 setActiveTab("queue");
               }}
               onOpenConceptRepair={(concept, track) => {
+                setTargetedConcept({ concept, track });
+                setActiveTab("repair");
+              }}
+              onRepair={(concept, track) => {
                 setTargetedConcept({ concept, track });
                 setActiveTab("repair");
               }}
@@ -562,6 +600,7 @@ export const App: React.FC = () => {
         onClose={() => setIsAuthOpen(false)}
         userProfile={userProfile}
         onUpdateDisplayName={handleUpdateDisplayName}
+        onSignOut={handleSignOut}
       />
     </div>
   );
