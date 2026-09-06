@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.:]+$');
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.displayName is string && data.displayName.size() <= 100
+        && data.xp is number && data.xp >= 0
+        && data.level is number && data.level >= 1
+        && data.currentStreak is number && data.currentStreak >= 0
+        && data.longestStreak is number && data.longestStreak >= 0;
+    }
+
+    function isValidLearningProgress(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.conceptId is string && data.conceptId.size() <= 128
+        && data.trackId is string && data.trackId.size() <= 128
+        && data.masteryLevel is number && data.masteryLevel >= 0 && data.masteryLevel <= 5
+        && data.easeFactor is number && data.easeFactor >= 1.0 && data.easeFactor <= 5.0
+        && data.intervalDays is number && data.intervalDays >= 0
+        && data.repetitions is number && data.repetitions >= 0
+        && data.nextReviewDate is string && data.nextReviewDate.size() <= 64;
+    }
+
+    function isValidConceptRepair(data) {
+      return data.userId is string && data.userId.size() <= 128
+        && data.conceptId is string && data.conceptId.size() <= 128
+        && data.conceptTitle is string && data.conceptTitle.size() <= 200
+        && data.misconception is string && data.misconception.size() <= 1000
+        && data.keyInsight is string && data.keyInsight.size() <= 2000
+        && data.repairedAt is string && data.repairedAt.size() <= 64;
+    }
+
+    function isValidMasteryCertificate(data) {
+      return data.certificateId is string && data.certificateId.size() <= 128
+        && data.userId is string && data.userId.size() <= 128
+        && data.userName is string && data.userName.size() <= 100
+        && data.trackId is string && data.trackId.size() <= 128
+        && data.trackTitle is string && data.trackTitle.size() <= 200
+        && data.verificationCode is string && data.verificationCode.size() <= 64
+        && data.masteryScore is number && data.masteryScore >= 0 && data.masteryScore <= 100;
+    }
+
+    function isValidCustomTrack(data) {
+      return data.trackId is string && data.trackId.size() <= 128
+        && data.authorId is string && data.authorId.size() <= 128
+        && data.title is string && data.title.size() <= 150
+        && data.description is string && data.description.size() <= 1000
+        && data.category is string && data.category.size() <= 50;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidUserProfile(incoming()) && incoming().userId == request.auth.uid;
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) && incoming().userId == request.auth.uid;
+      allow delete: if false;
+
+      // User subcollections: Learning progress
+      match /progress/{conceptId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidLearningProgress(incoming()) && incoming().userId == request.auth.uid;
+        allow update: if isOwner(userId) && isValidLearningProgress(incoming()) && incoming().userId == request.auth.uid;
+        allow delete: if isOwner(userId);
+      }
+
+      // User subcollections: Concept repairs log
+      match /repairs/{repairId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidConceptRepair(incoming()) && incoming().userId == request.auth.uid;
+        allow update: if false; // Repairs are immutable historical records
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Publicly verifiable certificates
+    match /certificates/{certificateId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid && isValidMasteryCertificate(incoming());
+      allow update, delete: if false;
+    }
+
+    // Custom tracks
+    match /customTracks/{trackId} {
+      allow get, list: if true;
+      allow create: if isSignedIn() && incoming().authorId == request.auth.uid && isValidCustomTrack(incoming());
+      allow update: if isSignedIn() && existing().authorId == request.auth.uid && incoming().authorId == request.auth.uid && isValidCustomTrack(incoming());
+      allow delete: if isSignedIn() && existing().authorId == request.auth.uid;
+    }
+  }
+}

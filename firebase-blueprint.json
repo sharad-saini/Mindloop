@@ -1,0 +1,118 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores user profile stats, XP, level, and daily streaks.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "xp": { "type": "number" },
+        "level": { "type": "number" },
+        "currentStreak": { "type": "number" },
+        "longestStreak": { "type": "number" },
+        "lastActiveDate": { "type": "string" },
+        "streakFreezes": { "type": "number" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "displayName", "xp", "level", "currentStreak", "longestStreak"]
+    },
+    "LearningProgress": {
+      "title": "LearningProgress",
+      "description": "SM-2 spaced repetition state and concept mastery level.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "conceptId": { "type": "string" },
+        "trackId": { "type": "string" },
+        "masteryLevel": { "type": "number" },
+        "easeFactor": { "type": "number" },
+        "intervalDays": { "type": "number" },
+        "repetitions": { "type": "number" },
+        "nextReviewDate": { "type": "string" },
+        "lastReviewedDate": { "type": "string" },
+        "totalAttempts": { "type": "number" },
+        "correctAttempts": { "type": "number" },
+        "retentionScore": { "type": "number" },
+        "needsRepair": { "type": "boolean" },
+        "lastMisconception": { "type": "string" }
+      },
+      "required": ["userId", "conceptId", "trackId", "masteryLevel", "easeFactor", "intervalDays", "repetitions", "nextReviewDate"]
+    },
+    "ConceptRepair": {
+      "title": "ConceptRepair",
+      "description": "Log of completed concept repair loop and misconception resolution.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "conceptId": { "type": "string" },
+        "trackId": { "type": "string" },
+        "conceptTitle": { "type": "string" },
+        "misconception": { "type": "string" },
+        "keyInsight": { "type": "string" },
+        "repairedAt": { "type": "string" },
+        "drillScore": { "type": "number" }
+      },
+      "required": ["userId", "conceptId", "conceptTitle", "misconception", "keyInsight", "repairedAt"]
+    },
+    "MasteryCertificate": {
+      "title": "MasteryCertificate",
+      "description": "Verifiable completion certificate for a learning track.",
+      "type": "object",
+      "properties": {
+        "certificateId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "trackId": { "type": "string" },
+        "trackTitle": { "type": "string" },
+        "issuedAt": { "type": "string" },
+        "verificationCode": { "type": "string" },
+        "masteryScore": { "type": "number" },
+        "conceptsCount": { "type": "number" }
+      },
+      "required": ["certificateId", "userId", "userName", "trackId", "trackTitle", "issuedAt", "verificationCode", "masteryScore"]
+    },
+    "CustomTrack": {
+      "title": "CustomTrack",
+      "description": "User created custom micro-learning track.",
+      "type": "object",
+      "properties": {
+        "trackId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "conceptsCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["trackId", "authorId", "title", "description", "category", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Public user profile and gamification state."
+    },
+    "/users/{userId}/progress/{conceptId}": {
+      "schema": "LearningProgress",
+      "description": "Spaced repetition state for a specific concept for the user."
+    },
+    "/users/{userId}/repairs/{repairId}": {
+      "schema": "ConceptRepair",
+      "description": "Logs of resolved concept misconceptions."
+    },
+    "/certificates/{certificateId}": {
+      "schema": "MasteryCertificate",
+      "description": "Public verifiable mastery certificates."
+    },
+    "/customTracks/{trackId}": {
+      "schema": "CustomTrack",
+      "description": "Community and user created micro-learning tracks."
+    }
+  }
+}

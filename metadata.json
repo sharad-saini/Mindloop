@@ -1,0 +1,6 @@
+{
+  "name": "MindLoop",
+  "description": "Adaptive micro-learning and concept repair platform with spaced repetition, practice loops, streaks, achievements, and verifiable mastery certificates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
