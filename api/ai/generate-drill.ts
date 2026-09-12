@@ -25,12 +25,16 @@ function parseJson(text: string | undefined, fallback: any) {
 
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  const input = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-  const topic = String(input.topic || "");
-  const difficulty = String(input.difficulty || "Intermediate");
-  const fallback = fallbackDrill(topic, difficulty);
-
   try {
+    let input: any = {};
+    try {
+      input = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+    } catch {
+      input = {};
+    }
+    const topic = String(input.topic || "");
+    const difficulty = String(input.difficulty || "Intermediate");
+    const fallback = fallbackDrill(topic, difficulty);
     if (!process.env.GEMINI_API_KEY) return res.status(200).json(fallback);
 
     try {
@@ -48,6 +52,6 @@ export default async function handler(req: any, res: any) {
     }
   } catch (error) {
     console.error("AI Drill generator error:", error);
-    return res.status(200).json(fallback);
+    return res.status(200).json(fallbackDrill("", "Intermediate"));
   }
 }

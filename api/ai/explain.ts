@@ -1,9 +1,13 @@
 export default async function handler(req: any, res: any) {
   if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
-  const input = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-  const fallback = fallbackExplain(input.conceptTitle || "this concept");
-
   try {
+    let input: any = {};
+    try {
+      input = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+    } catch {
+      input = {};
+    }
+    const fallback = fallbackExplain(input.conceptTitle || "this concept");
     if (!process.env.GEMINI_API_KEY) return res.status(200).json(fallback);
 
     try {
@@ -21,7 +25,7 @@ export default async function handler(req: any, res: any) {
     }
   } catch (error) {
     console.error("AI Explain error:", error);
-    return res.status(200).json(fallback);
+    return res.status(200).json(fallbackExplain("this concept"));
   }
 }
 
