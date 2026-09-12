@@ -195,7 +195,7 @@ export const App: React.FC = () => {
 
   // Compute weak concepts for AI Tutor context
   const weakConceptsList = useMemo(() => {
-    const list: { conceptId: string; title: string; accuracy: number; misconception?: string }[] = [];
+    const list: { id: string; title: string; accuracy: number; mistakesCount: number; misconception?: string }[] = [];
     tracks.forEach(track => {
       track.concepts.forEach(concept => {
         const p = progressMap[concept.id];
