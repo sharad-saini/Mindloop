@@ -1,11 +1,12 @@
-import { GoogleGenAI } from "@google/genai";
+let geminiClient: any = null;
 
-let geminiClient: GoogleGenAI | null = null;
-
-export function getGeminiClient(): GoogleGenAI | null {
+export async function getGeminiClient(): Promise<any | null> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
-  if (!geminiClient) geminiClient = new GoogleGenAI({ apiKey });
+  if (!geminiClient) {
+    const { GoogleGenAI } = await import("@google/genai");
+    geminiClient = new GoogleGenAI({ apiKey });
+  }
   return geminiClient;
 }
 

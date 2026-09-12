@@ -17,7 +17,7 @@ export default async function handler(req: any, res: any) {
   } = req.body || {};
 
   try {
-    const ai = getGeminiClient();
+    const ai = await getGeminiClient();
     if (!ai) {
       return sendJson(res, 200, {
         diagnosis: `You chose "${userAnswer}", whereas the correct principle is "${correctAnswer}".`,

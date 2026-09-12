@@ -5,7 +5,7 @@ export default async function handler(req: any, res: any) {
   const { conceptTitle, trackTitle, userQuestion } = req.body || {};
 
   try {
-    const ai = getGeminiClient();
+    const ai = await getGeminiClient();
     if (!ai) {
       return sendJson(res, 200, {
         overview: `In ${conceptTitle}, understanding the core boundary conditions prevents subtle production regressions.`,

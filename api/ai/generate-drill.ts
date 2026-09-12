@@ -5,7 +5,7 @@ export default async function handler(req: any, res: any) {
   const { topic, difficulty } = req.body || {};
 
   try {
-    const ai = getGeminiClient();
+    const ai = await getGeminiClient();
     if (!ai) {
       return sendJson(res, 200, {
         title: topic || "Custom Concept",

@@ -5,7 +5,7 @@ export default async function handler(req: any, res: any) {
 
   try {
     const { message, learningContext, chatHistory } = req.body || {};
-    const ai = getGeminiClient();
+    const ai = await getGeminiClient();
     const weakConcepts = Array.isArray(learningContext?.weakConcepts) ? learningContext.weakConcepts : [];
     const weakList = weakConcepts.length > 0
       ? weakConcepts.map((concept: any) => `${concept.title} (${concept.accuracy}% accuracy)`).join(", ")
