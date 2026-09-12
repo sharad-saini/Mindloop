@@ -66,6 +66,7 @@ export const App: React.FC = () => {
   const [progressMap, setProgressMap] = useState<Record<string, SpacedRepetitionProgress>>({});
   const [repairRecords, setRepairRecords] = useState<ConceptRepairRecord[]>([]);
   const [certificates, setCertificates] = useState<MasteryCertificate[]>([]);
+  const [recentAttempts, setRecentAttempts] = useState<NonNullable<LearningContext["recentAttempts"]>>([]);
   const [targetedConcept, setTargetedConcept] = useState<{ concept: Concept; track: LearningTrack } | null>(null);
 
   // Modals & Drawers
@@ -223,9 +224,9 @@ export const App: React.FC = () => {
       overallMastery,
       currentStreak: userProfile.currentStreak,
       weakConcepts: weakConceptsList,
-      recentAttempts: []
+      recentAttempts
     };
-  }, [tracks, progressMap, targetedConcept, userProfile.currentStreak, weakConceptsList]);
+  }, [tracks, progressMap, targetedConcept, userProfile.currentStreak, weakConceptsList, recentAttempts]);
 
   const handleOpenAiTutor = (conceptTitle?: string) => {
     setAiTutorInitialConcept(conceptTitle);
@@ -333,6 +334,15 @@ export const App: React.FC = () => {
 
     const matchedTrack = tracks.find(t => t.id === trackId);
     const matchedConcept = matchedTrack?.concepts.find(c => c.id === conceptId);
+
+    setRecentAttempts(prev => [...prev, {
+      moduleTitle: matchedConcept?.title || conceptId,
+      question: matchedConcept?.questions[0]?.prompt || "Active recall evaluation",
+      selectedAnswer: isCorrect ? "Accurate answer" : misconception || "Incorrect response",
+      correctAnswer: matchedConcept?.questions[0]?.options[matchedConcept.questions[0].correctIndex] || "Accurate answer",
+      isCorrect,
+      answeredAt: new Date().toISOString(),
+    }].slice(-5));
 
     // Trigger next module unlock animation if there is an adjacent concept in the curriculum
     if (matchedTrack && matchedConcept) {

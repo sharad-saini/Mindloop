@@ -6,12 +6,16 @@ export default async function handler(req: any, res: any) {
     const message = String(body.message || "");
     const context = body.learningContext || {};
     const weakConcepts = Array.isArray(context.weakConcepts) ? context.weakConcepts : [];
+    const recentAttempts = Array.isArray(context.recentAttempts) ? context.recentAttempts : [];
     const lower = message.toLowerCase();
     let reply = "Hello! I am your MindLoop AI Learning Tutor. I track your active recall intervals, cognitive bottlenecks, and concept mastery.";
     let suggestedAction: any;
 
     if (lower.includes("why") || lower.includes("wrong") || lower.includes("mistake")) {
-      reply = "Review your latest attempt by separating the rule from the intuition that led you astray. Compare your answer with the correct principle, identify the assumption that failed, and test the concept with one simpler example.";
+      const latestMistake = [...recentAttempts].reverse().find((attempt: any) => !attempt.isCorrect);
+      reply = latestMistake
+        ? `Your recent mistake was on "${latestMistake.moduleTitle}". You answered "${latestMistake.selectedAnswer}", but the correct answer was "${latestMistake.correctAnswer}". The key repair is to identify the assumption behind your answer, compare it with the governing rule, and test that rule with one simpler example.`
+        : "I do not have a recorded incorrect attempt yet. When you miss a question, compare your answer with the correct principle, identify the assumption that failed, and test the concept with one simpler example.";
     } else if (lower.includes("weak")) {
       if (weakConcepts.length > 0) {
         const weakList = weakConcepts.map((concept: any) => `${concept.title} (${concept.accuracy}% accuracy)`).join(", ");
@@ -24,8 +28,12 @@ export default async function handler(req: any, res: any) {
       } else {
         reply = "Great news! You currently have no identified weak concepts with low accuracy. Keep reviewing your daily queue to maintain peak retention!";
       }
-    } else if (lower.includes("quiz") || lower.includes("test me")) {
+    } else if (lower.includes("quiz") || lower.includes("test me") || lower.includes("active recall") || lower.includes("question")) {
       reply = `Here is an active recall check on ${context.currentTopic || "Core Mental Models"}: If two pointers start at opposite ends of a sorted array and their sum is greater than target, which pointer must move and why?`;
+    } else if (lower.includes("next") || lower.includes("learn")) {
+      reply = weakConcepts.length
+        ? `Your next best step is to repair ${weakConcepts[0].title}, currently at ${weakConcepts[0].accuracy}% accuracy, then retest it in the daily queue.`
+        : `Your next best step is to practice the next due card in ${context.currentCourse || "your current course"} and build evidence before moving to a new topic.`;
     } else {
       reply = `I am tracking your learning journey across "${context.currentCourse || "Computer Science & Systems"}". Current Overall Mastery is ${context.overallMastery ?? 0}%. What would you like to explore or clarify next?`;
     }
