@@ -68,7 +68,7 @@ service cloud.firestore {
     }
 
     function isValidCustomTrack(data) {
-      return data.trackId is string && data.trackId.size() <= 128
+      return data.id is string && data.id.size() > 0 && data.id.size() <= 128
         && data.authorId is string && data.authorId.size() <= 128
         && data.title is string && data.title.size() <= 150
         && data.description is string && data.description.size() <= 1000
@@ -92,7 +92,7 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow get: if isSignedIn();
+      allow get: if isOwner(userId);
       allow list: if false;
       allow create: if isOwner(userId) && isValidUserProfile(incoming()) && incoming().userId == request.auth.uid;
       allow update: if isOwner(userId) && isValidUserProfile(incoming()) && incoming().userId == request.auth.uid;

@@ -89,9 +89,7 @@ export const App: React.FC = () => {
       } else {
         // Auto-sign in anonymously for instant zero-friction persistence
         try {
-          const cred = await signInAnonymously(auth);
-          setCurrentUser(cred.user);
-          await loadUserData(cred.user);
+          await signInAnonymously(auth);
         } catch (e) {
           console.warn("Anonymous sign-in fallback:", e);
         }
@@ -115,8 +113,6 @@ export const App: React.FC = () => {
         const initialProfile: UserProfile = {
           userId: user.uid,
           displayName: user.displayName || (user.isAnonymous ? "Guest Learner" : "MindLoop Scholar"),
-          email: user.email || undefined,
-          photoURL: user.photoURL || undefined,
           isAnonymous: user.isAnonymous,
           xp: 0,
           level: 1,
@@ -125,6 +121,8 @@ export const App: React.FC = () => {
           lastActiveDate: new Date().toISOString(),
           streakFreezes: 1,
           createdAt: new Date().toISOString(),
+          ...(user.email ? { email: user.email } : {}),
+          ...(user.photoURL ? { photoURL: user.photoURL } : {}),
         };
         await setDoc(userDocRef, initialProfile);
         setUserProfile(initialProfile);
@@ -204,9 +202,10 @@ export const App: React.FC = () => {
         if (p && (p.needsRepair || (p.totalAttempts >= 2 && Math.round((p.correctAttempts / p.totalAttempts) * 100) < 70))) {
           const acc = p.totalAttempts > 0 ? Math.round((p.correctAttempts / p.totalAttempts) * 100) : 0;
           list.push({
-            conceptId: concept.id,
+            id: concept.id,
             title: concept.title,
             accuracy: acc,
+            mistakesCount: p.totalAttempts - p.correctAttempts,
             misconception: p.lastMisconception || concept.summary
           });
         }
@@ -241,13 +240,13 @@ export const App: React.FC = () => {
   };
 
   // 4. Update Profile XP & Streak
-  const addXP = async (amount: number) => {
+  const addXP = async (amount: number, authoritativeXp?: number) => {
     const streakUpdate = calculateUpdatedStreak(
       userProfile.currentStreak,
       userProfile.lastActiveDate,
       userProfile.streakFreezes
     );
-    const newXp = userProfile.xp + amount;
+    const newXp = authoritativeXp ?? userProfile.xp + amount;
     const newLevel = Math.floor(newXp / 100) + 1;
     const updatedProfile: UserProfile = {
       ...userProfile,
@@ -329,7 +328,7 @@ export const App: React.FC = () => {
       `Active recall on ${conceptId}`
     );
     if (rewardRes.awarded) {
-      await addXP(rewardRes.xpAwarded);
+      await addXP(rewardRes.xpAwarded, rewardRes.newTotalXP);
     }
 
     const matchedTrack = tracks.find(t => t.id === trackId);
@@ -460,7 +459,7 @@ export const App: React.FC = () => {
       `Cognitive repair on ${conceptTitle}`
     );
     if (repairReward.awarded) {
-      await addXP(repairReward.xpAwarded);
+      await addXP(repairReward.xpAwarded, repairReward.newTotalXP);
     }
 
     if (currentUser) {
@@ -499,7 +498,7 @@ export const App: React.FC = () => {
       `Mastery certificate for ${track.title}`
     );
     if (certReward.awarded) {
-      await addXP(certReward.xpAwarded);
+      await addXP(certReward.xpAwarded, certReward.newTotalXP);
     }
 
     try {

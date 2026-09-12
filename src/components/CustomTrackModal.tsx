@@ -42,10 +42,11 @@ export const CustomTrackModal: React.FC<CustomTrackModalProps> = ({
       });
       if (!res.ok) throw new Error("AI generation failed.");
       const data = await res.json();
+      const trackId = `custom-track-${Date.now()}`;
 
       const newConcepts: Concept[] = (data.questions || []).map((q: any, idx: number) => ({
         id: `custom-c-${Date.now()}-${idx}`,
-        trackId: `custom-track-${Date.now()}`,
+        trackId,
         title: q.text ? q.text.slice(0, 50) + "..." : `${topic} Principle ${idx + 1}`,
         category: topic,
         difficulty: difficulty as any,
@@ -68,7 +69,7 @@ export const CustomTrackModal: React.FC<CustomTrackModalProps> = ({
       }));
 
       const track: LearningTrack = {
-        id: `custom-track-${Date.now()}`,
+        id: trackId,
         title: data.title || topic,
         tagline: `AI-Synthesized active recall drills on ${topic}.`,
         description: description || data.summary || `Specialized track covering key concepts and cognitive pitfalls in ${topic}.`,
@@ -94,8 +95,9 @@ export const CustomTrackModal: React.FC<CustomTrackModalProps> = ({
     e.preventDefault();
     if (!topic.trim()) return;
 
+    const trackId = `custom-track-${Date.now()}`;
     const track: LearningTrack = {
-      id: `custom-track-${Date.now()}`,
+      id: trackId,
       title: topic,
       tagline: `Custom micro-learning track on ${topic}.`,
       description: description || `Specialized concepts curated for ${topic}.`,
@@ -107,7 +109,7 @@ export const CustomTrackModal: React.FC<CustomTrackModalProps> = ({
       concepts: [
         {
           id: `concept-${Date.now()}-1`,
-          trackId: `custom-track-${Date.now()}`,
+          trackId,
           title: `Foundations of ${topic}`,
           category: topic,
           difficulty: "intermediate",
