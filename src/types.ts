@@ -171,7 +171,7 @@ export interface LearningContext {
   currentCourse?: string;
   currentModule?: string;
   currentTopic?: string;
-  weakConcepts?: { id: string; title: string; accuracy: number; mistakesCount: number }[];
+  weakConcepts?: { id: string; title: string; accuracy: number; mistakesCount: number; misconception?: string }[];
   masteredConcepts?: string[];
   recentAttempts?: {
     moduleTitle: string;
