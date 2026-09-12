@@ -10,7 +10,9 @@ export default async function handler(req: any, res: any) {
     let reply = "Hello! I am your MindLoop AI Learning Tutor. I track your active recall intervals, cognitive bottlenecks, and concept mastery.";
     let suggestedAction: any;
 
-    if (lower.includes("weak") || lower.includes("mistake")) {
+    if (lower.includes("why") || lower.includes("wrong") || lower.includes("mistake")) {
+      reply = "Review your latest attempt by separating the rule from the intuition that led you astray. Compare your answer with the correct principle, identify the assumption that failed, and test the concept with one simpler example.";
+    } else if (lower.includes("weak")) {
       if (weakConcepts.length > 0) {
         const weakList = weakConcepts.map((concept: any) => `${concept.title} (${concept.accuracy}% accuracy)`).join(", ");
         reply = `Based on your recent attempts, your identified weak areas are: ${weakList}. Would you like to launch a Concept Repair session on your most critical bottleneck?`;
@@ -22,8 +24,6 @@ export default async function handler(req: any, res: any) {
       } else {
         reply = "Great news! You currently have no identified weak concepts with low accuracy. Keep reviewing your daily queue to maintain peak retention!";
       }
-    } else if (lower.includes("why") || lower.includes("wrong")) {
-      reply = "Review your latest attempt by separating the rule from the intuition that led you astray. I can walk through a guided example for the current topic.";
     } else if (lower.includes("quiz") || lower.includes("test me")) {
       reply = `Here is an active recall check on ${context.currentTopic || "Core Mental Models"}: If two pointers start at opposite ends of a sorted array and their sum is greater than target, which pointer must move and why?`;
     } else {
@@ -31,16 +31,20 @@ export default async function handler(req: any, res: any) {
     }
 
     if (process.env.GEMINI_API_KEY) {
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: message,
-        config: {
-          systemInstruction: `You are MindLoop's Socratic learning tutor. Use this learner context: ${JSON.stringify(context)}. Give a concise, rigorous answer.`,
-        },
-      });
-      reply = response.text || reply;
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: message,
+          config: {
+            systemInstruction: `You are MindLoop's Socratic learning tutor. Use this learner context: ${JSON.stringify(context)}. Give a concise, rigorous answer.`,
+          },
+        });
+        reply = response.text || reply;
+      } catch (error) {
+        console.warn("Gemini tutor fallback:", error);
+      }
     }
 
     return res.status(200).json({ reply, suggestedAction });
