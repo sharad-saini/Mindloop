@@ -7,7 +7,7 @@ import { createServer as createViteServer } from "vite";
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json());
 
@@ -169,8 +169,11 @@ Return a valid JSON object strictly matching this schema:
 // AI Learning Chatbot / Tutor Endpoint
 app.post("/api/ai/chat", async (req, res) => {
   try {
-    const { message, learningContext, chatHistory } = req.body;
-    const ai = getGeminiClient();
+    if (!req.body?.message) {
+  return res.status(400).json({
+    error: "message is required",
+  });
+}  const ai = getGeminiClient();
 
     const weakList = learningContext?.weakConcepts && learningContext.weakConcepts.length > 0
       ? learningContext.weakConcepts.map((w: any) => `${w.title} (${w.accuracy}% accuracy)`).join(", ")
@@ -236,7 +239,14 @@ Format response in clean Markdown. At the end, if a specific action (like repair
       ? chatHistory.map((msg: any) => `${msg.role === 'user' ? 'Learner' : 'Tutor'}: ${msg.text}`).join("\n")
       : "";
 
-    const userPrompt = `${formattedHistory ? "Previous Conversation:\n" + formattedHistory + "\n\n" : ""}Learner asks: ${message}`;
+    const safeMessage = String(message || "").slice(0, 5000);
+
+const userPrompt =
+  `${formattedHistory
+    ? "Previous Conversation:\n" + formattedHistory + "\n\n"
+    : ""
+  }Learner asks: ${safeMessage}`;
+
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -398,4 +408,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
+});
