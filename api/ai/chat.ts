@@ -24,7 +24,7 @@ export default async function handler(req: any, res: any) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.8-flash',
       systemInstruction: `You are MindLoop's Socratic learning tutor. Learner context: ${JSON.stringify(context)}. Provide a clear, structured, and helpful explanation to the student's question.`,
     });
 

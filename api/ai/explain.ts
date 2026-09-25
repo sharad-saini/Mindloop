@@ -29,14 +29,14 @@ Return valid JSON with exactly these string fields: overview, commonPitfall, cor
     // SDK Compatibility Check
     if (ai.getGenerativeModel) {
       const model = ai.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         generationConfig: { responseMimeType: "application/json" }
       });
       const result = await model.generateContent(prompt);
       responseText = result.response.text();
     } else if (ai.models?.generateContent) {
       const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+        model: "gemini-3.8-flash",
         contents: prompt,
         config: { responseMimeType: "application/json" },
       });
