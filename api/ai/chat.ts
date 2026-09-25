@@ -1,85 +1,42 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  // 1. CORS Headers सेट करें
+export default async function handler(req: any, res: any) {
+  // CORS Headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
     const message = String(body.message || '');
     const context = body.learningContext || {};
-    const weakConcepts = Array.isArray(context.weakConcepts) ? context.weakConcepts : [];
-    const recentAttempts = Array.isArray(context.recentAttempts) ? context.recentAttempts : [];
-    const lower = message.toLowerCase();
 
-    // डिफॉल्ट रूल-बेस्ड फ़ॉलबैक रिस्पॉन्स
-    let reply = `I am tracking your learning journey across "${context.currentCourse || 'Computer Science & Systems'}". Current Overall Mastery is ${context.overallMastery ?? 0}%. What would you like to explore or clarify next?`;
-    let suggestedAction: any = undefined;
-
-    if (lower.includes('why') || lower.includes('wrong') || lower.includes('mistake')) {
-      const latestMistake = [...recentAttempts].reverse().find((attempt: any) => !attempt.isCorrect);
-      reply = latestMistake
-        ? `Your recent mistake was on "${latestMistake.moduleTitle}". You answered "${latestMistake.selectedAnswer}", but the correct answer was "${latestMistake.correctAnswer}". The key repair is to identify the assumption behind your answer, compare it with the governing rule, and test that rule with one simpler example.`
-        : 'I do not have a recorded incorrect attempt yet. When you miss a question, compare your answer with the correct principle, identify the assumption that failed, and test the concept with one simpler example.';
-    } else if (lower.includes('weak')) {
-      if (weakConcepts.length > 0) {
-        const weakList = weakConcepts.map((concept: any) => `${concept.title} (${concept.accuracy}% accuracy)`).join(', ');
-        reply = `Based on your recent attempts, your identified weak areas are: ${weakList}. Would you like to launch a Concept Repair session on your most critical bottleneck?`;
-        suggestedAction = {
-          label: `Repair ${weakConcepts[0].title}`,
-          actionType: 'repair',
-          conceptId: weakConcepts[0].id,
-        };
-      } else {
-        reply = 'Great news! You currently have no identified weak concepts with low accuracy. Keep reviewing your daily queue to maintain peak retention!';
-      }
-    } else if (lower.includes('quiz') || lower.includes('test me') || lower.includes('active recall') || lower.includes('question')) {
-      reply = `Here is an active recall check on ${context.currentTopic || 'Core Mental Models'}: If two pointers start at opposite ends of a sorted array and their sum is greater than target, which pointer must move and why?`;
-    } else if (lower.includes('next') || lower.includes('learn')) {
-      reply = weakConcepts.length
-        ? `Your next best step is to repair ${weakConcepts[0].title}, currently at ${weakConcepts[0].accuracy}% accuracy, then retest it in the daily queue.`
-        : `Your next best step is to practice the next due card in ${context.currentCourse || 'your current course'} and build evidence before moving to a new topic.`;
-    }
-
-    // 2. Real Gemini API कॉल
     const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-      try {
-        const { GoogleGenAI } = await import('@google/genai');
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: message,
-          config: {
-            systemInstruction: `You are MindLoop's Socratic learning tutor. Use this learner context: ${JSON.stringify(context)}. Give a concise, rigorous answer.`,
-          },
-        });
-        if (response.text) {
-          reply = response.text;
-        }
-      } catch (geminiError) {
-        console.warn('Gemini API call failed, falling back to rule-based reply:', geminiError);
-      }
-    } else {
-      console.warn('⚠️ GEMINI_API_KEY is missing in Vercel Environment Variables!');
+
+    if (!apiKey) {
+      return res.status(200).json({
+        reply: "⚠️ GEMINI_API_KEY is missing in Vercel Environment Variables.",
+      });
     }
 
-    return res.status(200).json({ reply, suggestedAction });
-  } catch (error) {
-    console.error('AI Chat error:', error);
-    return res.status(500).json({
-      error: 'SERVER_ERROR',
-      reply: 'I am tracking your learning journey. Keep reviewing your daily queue and ask me about the current topic whenever you are ready.',
+    const genAI = new GoogleGenerativeAI(apiKey);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      systemInstruction: `You are MindLoop's Socratic learning tutor. Learner context: ${JSON.stringify(context)}. Provide a clear, structured, and helpful explanation to the student's question.`,
+    });
+
+    const result = await model.generateContent(message);
+    const responseText = result.response.text();
+
+    return res.status(200).json({ reply: responseText });
+
+  } catch (error: any) {
+    console.error('Gemini API Error:', error);
+    return res.status(200).json({
+      reply: `AI Connection Error: ${error?.message || 'Failed to generate response'}`,
     });
   }
 }
