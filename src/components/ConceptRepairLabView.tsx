@@ -119,7 +119,7 @@ export const ConceptRepairLabView: React.FC<ConceptRepairLabViewProps> = ({
               onRepairCompleted(
                 activeRepairConcept.concept.id,
                 activeRepairConcept.track.id,
-                activeRepairConcept.concept.title,
+                activeRepairConcept?.concept?.title ?? "Next Lesson",
                 activeRepairConcept.concept.questions[0].misconceptionDiagnosis,
                 insight,
                 score

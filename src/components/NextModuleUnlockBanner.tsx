@@ -53,7 +53,7 @@ export const NextModuleUnlockBanner: React.FC<NextModuleUnlockBannerProps> = ({
 
                 <h4 className="text-sm sm:text-base font-bold text-white mt-0.5 truncate flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>Next: {nextConcept.concept.title}</span>
+                  <span>Next: {nextConcept?.concept?.title ?? "Next Lesson"}</span>
                 </h4>
               </div>
             </div>

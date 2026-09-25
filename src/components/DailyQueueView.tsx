@@ -319,7 +319,7 @@ export const DailyQueueView: React.FC<DailyQueueViewProps> = ({
                     Targeted Practice
                   </span>
                   <span className="font-semibold text-white truncate max-w-xs sm:max-w-md">
-                    {targetedConcept.concept.title}
+                    {targetedConcept?.concept?.title ?? "Next Lesson"}
                   </span>
                 </div>
                 <button
