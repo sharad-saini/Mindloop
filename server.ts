@@ -169,23 +169,51 @@ Return a valid JSON object strictly matching this schema:
 // AI Learning Chatbot / Tutor Endpoint
 app.post("/api/ai/chat", async (req, res) => {
   try {
-    if (!req.body?.message) {
-  return res.status(400).json({
-    error: "message is required",
-  });
-}  const ai = getGeminiClient();
+    const {
+      message,
+      learningContext = {},
+      chatHistory = [],
+    } = req.body || {};
 
-    const weakList = learningContext?.weakConcepts && learningContext.weakConcepts.length > 0
-      ? learningContext.weakConcepts.map((w: any) => `${w.title} (${w.accuracy}% accuracy)`).join(", ")
-      : "None detected yet (steady performance)";
+    if (!message) {
+      return res.status(400).json({
+        error: "message is required",
+      });
+    }
 
-    const recentMistakes = learningContext?.recentAttempts && learningContext.recentAttempts.length > 0
-      ? learningContext.recentAttempts
-          .filter((a: any) => !a.isCorrect)
-          .slice(-3)
-          .map((a: any) => `Question: "${a.question}", Student answered: "${a.selectedAnswer}", Correct: "${a.correctAnswer}"`)
-          .join("\n")
-      : "No recent incorrect answers recorded";
+    const ai = getGeminiClient();
+
+    const weakList =
+      learningContext?.weakConcepts &&
+      learningContext.weakConcepts.length > 0
+        ? learningContext.weakConcepts
+            .map(
+              (w:any) => `${w.title} (${w.accuracy}% accuracy)`
+            )
+            .join(", ")
+        : "None detected yet (steady performance)";
+    const recentMistakes =
+  Array.isArray(learningContext?.recentAttempts) &&
+  learningContext.recentAttempts.length > 0
+    ? learningContext.recentAttempts
+        .map((attempt: any) => {
+          const topic =
+            attempt.title ||
+            attempt.concept ||
+            attempt.topic ||
+            "Unknown topic";
+
+          const score =
+            attempt.accuracy ??
+            attempt.score ??
+            attempt.percentage;
+
+          return score !== undefined
+            ? `${topic} (${score}%)`
+            : topic;
+        })
+        .join(", ")
+    : "None recorded yet";
 
     if (!ai) {
       // Deterministic Socratic fallback
